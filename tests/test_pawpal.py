@@ -72,3 +72,65 @@ def test_detect_conflicts_warns_on_same_time():
     warnings = scheduler.detect_conflicts()
     assert len(warnings) == 1
     assert "Feeding" in warnings[0] and "Heartworm pill" in warnings[0]
+
+
+# --- Edge cases ---
+
+
+def test_pet_with_no_tasks_and_owner_with_no_pets():
+    owner = Owner("Jordan")
+    scheduler = Scheduler(owner)
+    assert scheduler.get_tasks() == []
+    assert scheduler.todays_schedule() == []
+    assert scheduler.detect_conflicts() == []
+    owner.add_pet(Pet("Mochi", "dog"))
+    assert scheduler.filter_tasks(pet_name="Mochi") == []
+    assert "No tasks scheduled." in scheduler.format_schedule()
+
+
+def test_same_time_tasks_are_ordered_by_priority():
+    scheduler, mochi, _ = make_scheduler()
+    mochi.add_task(Task("Low thing", "12:00", priority="low"))
+    mochi.add_task(Task("High thing", "12:00", priority="high"))
+    noon = [t.description for t in scheduler.sort_by_time() if t.time == "12:00"]
+    assert noon == ["High thing", "Low thing"]
+
+
+def test_sort_handles_unpadded_hours():
+    # "9:00" would sort after "10:00" as plain text; it should come first.
+    tasks = [Task("Late", "10:00"), Task("Early", "9:00")]
+    scheduler = Scheduler(Owner("Jordan"))
+    assert [t.description for t in scheduler.sort_by_time(tasks)] == ["Early", "Late"]
+
+
+def test_recurring_copy_keeps_details_and_is_hidden_until_its_day():
+    scheduler, mochi, _ = make_scheduler()
+    walk = mochi.tasks[1]
+    new_task = scheduler.mark_task_complete(walk)
+    assert (new_task.description, new_task.time, new_task.pet_name) == (walk.description, walk.time, "Mochi")
+    assert new_task is not walk
+    assert new_task not in scheduler.todays_schedule()
+    assert new_task in scheduler.todays_schedule(today=walk.due_date + timedelta(days=1))
+
+
+def test_completed_tasks_do_not_cause_conflicts():
+    scheduler, mochi, luna = make_scheduler()
+    mochi.add_task(Task("Heartworm pill", "08:00"))
+    luna.tasks[0].mark_complete()  # Feeding at 08:00
+    assert scheduler.detect_conflicts() == []
+
+
+def test_same_time_on_different_days_is_not_a_conflict():
+    scheduler, mochi, _ = make_scheduler()
+    tomorrow = date.today() + timedelta(days=1)
+    mochi.add_task(Task("Vet visit", "08:00", due_date=tomorrow))
+    assert scheduler.detect_conflicts() == []
+
+
+def test_three_way_conflict_gives_one_warning():
+    scheduler, mochi, luna = make_scheduler()
+    mochi.add_task(Task("Pill", "08:00"))
+    luna.add_task(Task("Litter box", "8:00"))
+    warnings = scheduler.detect_conflicts()
+    assert len(warnings) == 1
+    assert all(name in warnings[0] for name in ["Feeding", "Pill", "Litter box"])

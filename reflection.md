@@ -44,13 +44,11 @@ The AI's first UML draft gave Task a `title` and a `preferred_time` and didn't i
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+I tested the main things my scheduler promises to do: tasks come out in time order, filters return the right pet's tasks or only done/not-done ones, completing a daily or weekly task creates the next one on the right date, and two tasks at the same time get a warning. I also tested edge cases, like an owner with no pets, a pet with no tasks, two tasks at the same time with different priorities, and a time typed as "9:00" instead of "09:00". These tests matter because the schedule is the whole point of the app. If sorting or repeating tasks broke, an owner could miss a feeding or a pill without noticing. The tests also let me change the code later and know right away if I broke something.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+I'd give it 4 out of 5. All 15 tests pass, and the demo in `main.py` and the Streamlit app behave the way I expect. I'm not at 5 because conflict detection only catches tasks that start at the exact same time, so a 30-minute walk at 7:30 and a feeding at 7:45 wouldn't be flagged. If I had more time, I'd test overlapping durations, tasks that run past midnight, invalid times like "25:00" or "abc", two pets with the same name, and what happens when the total minutes go over the owner's available time.
 
 ---
 

@@ -101,21 +101,36 @@ Total: 55 min of 120 min available
 
 ## 🧪 Testing PawPal+
 
+Run the test suite from the project folder:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The 15 tests in `tests/test_pawpal.py` cover:
+
+- **Basics:** `mark_complete()` changes a task's status, and `add_task()` increases a pet's task count.
+- **Sorting:** tasks come back in chronological order. Tasks at the same time are ordered by priority (high first). Unpadded times like `"9:00"` sort before `"10:00"`.
+- **Filtering:** by pet, by completion status, and by both together.
+- **Recurring tasks:** completing a daily task creates a copy for the next day, and a weekly task moves 7 days. A `once` task doesn't repeat. The new copy keeps the same details and stays out of today's schedule until its day.
+- **Conflict detection:** two tasks at the same time get flagged. Three tasks at the same time give one warning. Completed tasks and tasks on different days are *not* flagged.
+- **Edge cases:** an owner with no pets, and a pet with no tasks, return empty lists and an empty schedule instead of crashing.
+
+Successful test run:
 
 ```
-tests\test_pawpal.py ........                                            [100%]
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.7.0
+rootdir: D:\CodePath AI 110\ai110-module2show-pawpal-starter
+plugins: anyio-4.15.1
+collected 15 items
 
-============================== 8 passed in 0.04s ==============================
+tests\test_pawpal.py ...............                                     [100%]
+
+============================= 15 passed in 0.07s ==============================
 ```
+
+**Confidence level: ⭐⭐⭐⭐ (4/5).** Every core behavior and the edge cases I could think of pass. I'm not giving it 5 because conflict detection only checks exact start times (not overlapping durations), and the Streamlit UI is only tested by hand.
 
 ## 📐 Smarter Scheduling
 
