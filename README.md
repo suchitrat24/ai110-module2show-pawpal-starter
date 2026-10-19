@@ -42,6 +42,17 @@ pip install -r requirements.txt
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
 
+## ✨ Features
+
+- **Multi-pet support:** one owner can manage several pets. The scheduler gets every pet's tasks through `Owner.get_all_tasks()`.
+- **Sorting by time:** `Scheduler.sort_by_time()` orders tasks by date, then time of day. Tasks at the same time are ordered by priority (high → medium → low). Times like `"9:00"` and `"09:00"` are treated the same.
+- **Filtering:** `Scheduler.filter_tasks()` shows tasks for one pet, only pending or only completed tasks, or both filters together.
+- **Daily and weekly recurrence:** marking a `daily` or `weekly` task complete with `Scheduler.mark_task_complete()` automatically adds the next one (+1 day or +7 days, using `timedelta`). `once` tasks don't repeat.
+- **Today's plan:** `Scheduler.todays_schedule()` shows only pending tasks due today, so finished tasks and future repeats stay out of the way.
+- **Conflict warnings:** `Scheduler.detect_conflicts()` flags tasks booked at the same date and time, for the same pet or different pets. It returns readable warning messages instead of crashing.
+- **Time budget check:** the app compares the total task minutes with the owner's available minutes and warns when the day is overbooked.
+- **Tested:** 15 pytest tests cover the features above plus edge cases (see [Testing PawPal+](#-testing-pawpal)).
+
 ## 🧩 Implementation Summary
 
 The core logic lives in `pawpal_system.py` and is built from four classes:
@@ -51,7 +62,7 @@ The core logic lives in `pawpal_system.py` and is built from four classes:
 - **Owner**: holds multiple pets. `get_all_tasks()` returns every pet's tasks in one list.
 - **Scheduler**: the "brain." It pulls tasks through `Owner.get_all_tasks()`, so it sees every pet. It then filters out completed tasks, sorts by time (with priority as the tie-breaker), and formats today's schedule.
 
-How they connect: Owner → many Pets → many Tasks, and the Scheduler talks only to the Owner.
+How they connect: Owner → many Pets → many Tasks, and the Scheduler talks only to the Owner. The full class diagram is in [`diagrams/uml_final.mmd`](diagrams/uml_final.mmd).
 
 ## 🖥️ Sample Output
 
@@ -144,12 +155,78 @@ tests\test_pawpal.py ...............                                     [100%]
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+Start the app with `streamlit run app.py`.
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+**Main UI features**
+
+| Section | What you can do |
+|---------|-----------------|
+| **Owner** | Set your name and how many minutes you have for pet care today. |
+| **Add a Pet** | Add a pet with a name, species, and age. Blank names and duplicate names are rejected. |
+| **Add a Task** | Pick a pet and enter the task, time, duration, priority, and how often it repeats (once, daily, weekly). |
+| **Today's Schedule** | See today's pending tasks sorted by time, with a summary (tasks today, minutes needed, conflicts), conflict and overbooked warnings, and ⚠️ next to clashing rows. Mark a task complete here. |
+| **Browse Tasks** | Filter every task by pet and by status (all, pending, completed), including future repeats. |
+
+**Example workflow**
+
+1. Set the owner to **Jordan** with **120** minutes available.
+2. Add two pets: **Mochi** (dog) and **Luna** (cat).
+3. Add tasks out of order: Mochi's *Evening walk* at 18:00, Mochi's *Morning walk* at 07:30, and Luna's *Feeding* at 08:00.
+4. Open **Today's Schedule**. The tasks show in time order: 07:30 → 08:00 → 18:00.
+5. Add Mochi's *Heartworm pill* at 08:00. A **Time conflict** warning appears above the table, suggesting you move one task, and both 08:00 rows get a ⚠️.
+6. Mark *Morning walk* complete. A pop-up says the next one is scheduled for tomorrow, and the walk leaves today's list.
+7. In **Browse Tasks**, choose **Mochi** + **Pending** to see tomorrow's *Morning walk*, or **Completed** to see what's done.
+
+**Key Scheduler behaviors shown**
+
+- Sorting by time, with priority breaking ties (`sort_by_time`)
+- Conflict warnings for tasks at the same time (`detect_conflicts`)
+- Daily/weekly recurrence when a task is completed (`mark_task_complete` → `next_occurrence`)
+- Filtering by pet and status (`filter_tasks`)
+- Today-only, pending-only plan (`todays_schedule`)
+
+**Sample CLI output (`python main.py`)**
+
+```
+Tasks as added (unsorted):
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+  2026-10-19 07:30  Mochi  Morning walk    (daily, todo)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, todo)
+  2026-10-19 12:00  Luna   Brushing        (weekly, todo)
+  2026-10-19 08:00  Luna   Feeding         (daily, todo)
+
+Sorted by time:
+  2026-10-19 07:30  Mochi  Morning walk    (daily, todo)
+  2026-10-19 08:00  Luna   Feeding         (daily, todo)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, todo)
+  2026-10-19 12:00  Luna   Brushing        (weekly, todo)
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+
+Only Mochi's tasks:
+  2026-10-19 07:30  Mochi  Morning walk    (daily, todo)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, todo)
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+
+Conflict check:
+  WARNING: Conflict at 08:00 on 2026-10-19: Mochi: Heartworm pill, Luna: Feeding
+
+Completed tasks:
+  2026-10-19 07:30  Mochi  Morning walk    (daily, done)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, done)
+
+Pending tasks (note tomorrow's Morning walk):
+  2026-10-19 08:00  Luna   Feeding         (daily, todo)
+  2026-10-19 12:00  Luna   Brushing        (weekly, todo)
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+  2026-10-20 07:30  Mochi  Morning walk    (daily, todo)
+
+Today's Schedule for Jordan
+========================================
+08:00  Luna     Feeding             10 min  [high, daily]
+12:00  Luna     Brushing            15 min  [low, weekly]
+18:00  Mochi    Evening walk        30 min  [high, daily]
+----------------------------------------
+Total: 55 min of 120 min available
+```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->

@@ -1,5 +1,5 @@
 classDiagram
-    %% PawPal+ design. Keep this file updated so it matches your final implementation.
+    %% PawPal+ design (kept in sync with uml_final.mmd).
 
     class Task {
         +str description
@@ -13,7 +13,7 @@ classDiagram
         +mark_complete() None
         +mark_incomplete() None
         +priority_value() int
-        +next_occurrence() Task
+        +next_occurrence() Optional~Task~
     }
 
     class Pet {
@@ -31,7 +31,7 @@ classDiagram
         +int available_minutes
         +list~Pet~ pets
         +add_pet(pet: Pet) None
-        +get_pet(name: str) Pet
+        +get_pet(name: str) Optional~Pet~
         +get_all_tasks() list~Task~
     }
 
@@ -42,14 +42,24 @@ classDiagram
         +sort_by_time(tasks) list~Task~
         +filter_tasks(pet_name, completed, tasks) list~Task~
         +filter_by_pet(pet_name: str) list~Task~
-        +mark_task_complete(task: Task) Task
+        +mark_task_complete(task: Task) Optional~Task~
         +detect_conflicts(tasks) list~str~
         +todays_schedule(today) list~Task~
         +format_schedule() str
     }
 
-    Owner "1" o-- "*" Pet : owns
-    Pet "1" *-- "*" Task : needs
-    Scheduler "1" --> "1" Owner : reads via get_all_tasks()
-    Scheduler ..> Task : sorts, filters, completes
-    Task ..> Task : next_occurrence()
+    class pawpal_system {
+        <<module>>
+        +PRIORITY_RANK dict
+        +RECURRENCE_STEP dict
+        +time_to_minutes(time_str: str) int
+    }
+
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : needs
+    Scheduler "1" --> "1" Owner : reads tasks via get_all_tasks()
+    Scheduler ..> Pet : adds next occurrence via get_pet()
+    Scheduler ..> Task : sorts, filters, completes, checks conflicts
+    Task ..> Task : next_occurrence() creates copy
+    Task ..> pawpal_system : PRIORITY_RANK, RECURRENCE_STEP
+    Scheduler ..> pawpal_system : time_to_minutes()

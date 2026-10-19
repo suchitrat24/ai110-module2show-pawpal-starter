@@ -1,0 +1,65 @@
+classDiagram
+    %% PawPal+ final design, matching pawpal_system.py.
+
+    class Task {
+        +str description
+        +str time
+        +int duration_minutes
+        +str priority
+        +str frequency
+        +bool completed
+        +str pet_name
+        +date due_date
+        +mark_complete() None
+        +mark_incomplete() None
+        +priority_value() int
+        +next_occurrence() Optional~Task~
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +list~Task~ tasks
+        +add_task(task: Task) None
+        +remove_task(description: str) bool
+        +get_tasks() list~Task~
+    }
+
+    class Owner {
+        +str name
+        +int available_minutes
+        +list~Pet~ pets
+        +add_pet(pet: Pet) None
+        +get_pet(name: str) Optional~Pet~
+        +get_all_tasks() list~Task~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +get_tasks() list~Task~
+        +get_pending_tasks() list~Task~
+        +sort_by_time(tasks) list~Task~
+        +filter_tasks(pet_name, completed, tasks) list~Task~
+        +filter_by_pet(pet_name: str) list~Task~
+        +mark_task_complete(task: Task) Optional~Task~
+        +detect_conflicts(tasks) list~str~
+        +todays_schedule(today) list~Task~
+        +format_schedule() str
+    }
+
+    class pawpal_system {
+        <<module>>
+        +PRIORITY_RANK dict
+        +RECURRENCE_STEP dict
+        +time_to_minutes(time_str: str) int
+    }
+
+    Owner "1" o-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : needs
+    Scheduler "1" --> "1" Owner : reads tasks via get_all_tasks()
+    Scheduler ..> Pet : adds next occurrence via get_pet()
+    Scheduler ..> Task : sorts, filters, completes, checks conflicts
+    Task ..> Task : next_occurrence() creates copy
+    Task ..> pawpal_system : PRIORITY_RANK, RECURRENCE_STEP
+    Scheduler ..> pawpal_system : time_to_minutes()
