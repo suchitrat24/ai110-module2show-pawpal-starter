@@ -32,13 +32,11 @@
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+I used Claude Code in agent mode for most of the build. First it turned my four classes (Owner, Pet, Task, Scheduler) into a Mermaid UML diagram. Then I gave it the class descriptions from the assignment, and it wrote the code in `pawpal_system.py`, the `main.py` demo, and the two starter tests. The most helpful prompts were specific about the rules. For example, I told it the Scheduler has to get tasks through the Owner's `get_all_tasks()` method instead of from a single pet, and that made it build the multi-pet design correctly.
 
 **b. Judgment and verification**
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+The AI's first UML draft gave Task a `title` and a `preferred_time` and didn't include a frequency. The assignment says a Task should have a description, time, frequency, and completion status, so I didn't keep that version. I had the code follow the assignment's fields and then updated the UML to match. I also checked that the Scheduler only gets its tasks through `owner.get_all_tasks()`. It never reads a pet's list directly, which is what the multi-pet requirement asks for. To check the results, I ran `python main.py` and saw that tasks from both pets printed in time order. I also ran `python -m pytest`, and both tests passed.
 
 ---
 

@@ -42,16 +42,31 @@ pip install -r requirements.txt
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
 
+## 🧩 Implementation Summary
+
+The core logic lives in `pawpal_system.py` and is built from four classes:
+
+- **Task**: one care activity, with a description, time (`HH:MM`), duration, priority, frequency (once/daily/weekly), and completion status. `mark_complete()` marks it done.
+- **Pet**: a pet's details plus its list of tasks. `add_task()` attaches a task and tags it with the pet's name.
+- **Owner**: holds multiple pets. `get_all_tasks()` returns every pet's tasks in one list.
+- **Scheduler**: the "brain." It pulls tasks through `Owner.get_all_tasks()`, so it sees every pet. It then filters out completed tasks, sorts by time (with priority as the tie-breaker), and formats today's schedule.
+
+How they connect: Owner → many Pets → many Tasks, and the Scheduler talks only to the Owner.
+
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
+Output of `python main.py`:
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+Today's Schedule for Jordan
+========================================
+07:30  Mochi    Morning walk        30 min  [high, daily]
+08:00  Luna     Feeding             10 min  [high, daily]
+08:00  Mochi    Heartworm pill       5 min  [medium, once]
+12:00  Luna     Brushing            15 min  [low, weekly]
+18:00  Mochi    Evening walk        30 min  [high, daily]
+----------------------------------------
+Total: 90 min of 120 min available
 ```
 
 ## 🧪 Testing PawPal+
@@ -67,7 +82,9 @@ pytest --cov
 Sample test output:
 
 ```
-# Paste your pytest output here
+tests\test_pawpal.py ..                                                  [100%]
+
+============================== 2 passed in 0.06s ==============================
 ```
 
 ## 📐 Smarter Scheduling
