@@ -1,4 +1,6 @@
 from collections import Counter
+from datetime import datetime
+from pathlib import Path
 
 import streamlit as st
 
@@ -9,12 +11,32 @@ st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 st.title("🐾 PawPal+")
 st.caption("Plan your pets' care tasks for the day.")
 
+DATA_FILE = Path(__file__).parent / "data.json"
+
 # Streamlit reruns this script on every click, so keep the Owner in session_state
-# and only create it the first time.
+# and only create it the first time: from data.json if it exists, otherwise fresh.
 if "owner" not in st.session_state:
-    st.session_state.owner = Owner("Jordan", available_minutes=120)
+    try:
+        st.session_state.owner = Owner.load_from_json(DATA_FILE)
+    except (ValueError, KeyError, TypeError) as err:
+        st.session_state.owner = None
+        st.warning(f"Couldn't read {DATA_FILE.name} ({err}). Starting with a fresh owner.")
+    if st.session_state.owner is None:
+        st.session_state.owner = Owner("Jordan", available_minutes=120)
+    st.session_state.saved = st.session_state.owner.to_dict()
 
 owner: Owner = st.session_state.owner
+
+# Free-slot searches start from now (or 07:00 if it's earlier), so we never suggest a time that's passed.
+search_from = max("07:00", datetime.now().strftime("%H:%M"))
+
+with st.sidebar:
+    st.markdown("**💾 Saved data**")
+    st.caption(f"Pets and tasks save automatically to `{DATA_FILE.name}` and reload next time.")
+    if st.button("Clear saved data"):
+        DATA_FILE.unlink(missing_ok=True)
+        del st.session_state["owner"]
+        st.rerun()
 
 st.subheader("Owner")
 col1, col2 = st.columns(2)
@@ -86,6 +108,14 @@ else:
                 )
                 st.success(f"Added '{description.strip()}' for {task_pet}.")
 
+    with st.expander("🔍 Find a free time today"):
+        need = st.number_input("How many minutes do you need?", min_value=1, max_value=240, value=20)
+        slot = Scheduler(owner).find_next_available_slot(int(need), earliest=search_from)
+        if slot:
+            st.success(f"Next free {int(need)}-min slot today: **{slot}** (searching {search_from}–21:00).")
+        else:
+            st.warning(f"No free {int(need)}-min slot left today ({search_from}–21:00).")
+
 st.divider()
 
 st.subheader("Today's Schedule")
@@ -112,6 +142,13 @@ else:
             "You can't do these at the same time. Move one to a different time, "
             "or handle the higher-priority one first."
         )
+    slot_counts = Counter(time_to_minutes(t.time) for t in schedule)
+    conflict_slots = {slot for slot, count in slot_counts.items() if count > 1}
+    if conflicts:
+        longest = max(t.duration_minutes for t in schedule if time_to_minutes(t.time) in conflict_slots)
+        slot = scheduler.find_next_available_slot(longest, earliest=search_from)
+        if slot:
+            st.info(f"💡 Next free {longest}-min slot today is **{slot}**. Try moving one of the clashing tasks there.")
     if total > owner.available_minutes:
         st.warning(
             f"⏰ **Overbooked:** these tasks need {total} min but you have {owner.available_minutes} min. "
@@ -120,8 +157,6 @@ else:
     elif not conflicts:
         st.success(f"✅ No conflicts. {total} of {owner.available_minutes} min used.")
 
-    slot_counts = Counter(time_to_minutes(t.time) for t in schedule)
-    conflict_slots = {slot for slot, count in slot_counts.items() if count > 1}
     st.caption("Sorted by time; tasks at the same time are ordered by priority.")
     st.table(
         [
@@ -175,3 +210,9 @@ if filtered:
     )
 else:
     st.caption("No tasks match these filters.")
+
+# Save after every run where something changed, so data.json always matches the app.
+current = owner.to_dict()
+if current != st.session_state.get("saved"):
+    owner.save_to_json(DATA_FILE)
+    st.session_state.saved = current

@@ -1,7 +1,9 @@
 """PawPal+ core logic: Task, Pet, Owner, and Scheduler."""
 
-from dataclasses import dataclass, field, replace
+import json
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, timedelta
+from pathlib import Path
 
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 RECURRENCE_STEP = {"daily": timedelta(days=1), "weekly": timedelta(weeks=1)}
@@ -11,6 +13,11 @@ def time_to_minutes(time_str: str) -> int:
     """Convert an "HH:MM" string to minutes after midnight (so "7:30" and "07:30" sort the same)."""
     hours, minutes = time_str.split(":")
     return int(hours) * 60 + int(minutes)
+
+
+def minutes_to_time(minutes: int) -> str:
+    """Convert minutes after midnight back to a zero-padded "HH:MM" string."""
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
 @dataclass
@@ -45,6 +52,20 @@ class Task:
             return None
         return replace(self, completed=False, due_date=self.due_date + step)
 
+    def to_dict(self) -> dict:
+        """Return a JSON-safe dict of this task (the date becomes an ISO string)."""
+        data = asdict(self)
+        data["due_date"] = self.due_date.isoformat()
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Task":
+        """Rebuild a Task from a dict made by to_dict()."""
+        data = dict(data)
+        if "due_date" in data:
+            data["due_date"] = date.fromisoformat(data["due_date"])
+        return cls(**data)
+
 
 @dataclass
 class Pet:
@@ -72,6 +93,23 @@ class Pet:
         """Return this pet's tasks."""
         return list(self.tasks)
 
+    def to_dict(self) -> dict:
+        """Return a JSON-safe dict of this pet and its tasks."""
+        return {
+            "name": self.name,
+            "species": self.species,
+            "age": self.age,
+            "tasks": [task.to_dict() for task in self.tasks],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Pet":
+        """Rebuild a Pet (and its tasks) from a dict made by to_dict()."""
+        pet = cls(data["name"], data["species"], age=data.get("age", 0))
+        for task_data in data.get("tasks", []):
+            pet.add_task(Task.from_dict(task_data))
+        return pet
+
 
 @dataclass
 class Owner:
@@ -95,6 +133,37 @@ class Owner:
     def get_all_tasks(self) -> list[Task]:
         """Return every task across all of this owner's pets."""
         return [task for pet in self.pets for task in pet.tasks]
+
+    def to_dict(self) -> dict:
+        """Return a JSON-safe dict of this owner, their pets, and all tasks."""
+        return {
+            "name": self.name,
+            "available_minutes": self.available_minutes,
+            "pets": [pet.to_dict() for pet in self.pets],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Owner":
+        """Rebuild an Owner (with pets and tasks) from a dict made by to_dict()."""
+        owner = cls(data["name"], available_minutes=data.get("available_minutes", 120))
+        for pet_data in data.get("pets", []):
+            owner.add_pet(Pet.from_dict(pet_data))
+        return owner
+
+    def save_to_json(self, path: str | Path = "data.json") -> None:
+        """Save this owner, their pets, and all tasks to a JSON file."""
+        path = Path(path)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
+        tmp.replace(path)  # write then swap, so a crash never leaves a half-written file
+
+    @classmethod
+    def load_from_json(cls, path: str | Path = "data.json") -> "Owner | None":
+        """Load an owner from a JSON file, or return None if the file doesn't exist yet."""
+        path = Path(path)
+        if not path.exists():
+            return None
+        return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
 class Scheduler:
@@ -161,6 +230,33 @@ class Scheduler:
                 names = ", ".join(f"{t.pet_name}: {t.description}" for t in clashing)
                 warnings.append(f"Conflict at {clashing[0].time} on {clashing[0].due_date}: {names}")
         return warnings
+
+    def find_next_available_slot(
+        self,
+        duration_minutes: int,
+        on: date | None = None,
+        earliest: str = "07:00",
+        latest: str = "21:00",
+    ) -> str | None:
+        """Return the earliest "HH:MM" start with room for a task of this length, or None if the day is full.
+
+        Pending tasks on that date are treated as busy blocks from their start time to start + duration.
+        The method walks those blocks in time order and returns the first gap that is long enough.
+        """
+        on = date.today() if on is None else on
+        busy = sorted(
+            (time_to_minutes(t.time), time_to_minutes(t.time) + t.duration_minutes)
+            for t in self.get_pending_tasks()
+            if t.due_date == on
+        )
+        candidate = time_to_minutes(earliest)
+        for start, end in busy:
+            if start - candidate >= duration_minutes:
+                break
+            candidate = max(candidate, end)
+        if candidate + duration_minutes > time_to_minutes(latest):
+            return None
+        return minutes_to_time(candidate)
 
     def todays_schedule(self, today: date | None = None) -> list[Task]:
         """Return pending tasks due today, in time order."""

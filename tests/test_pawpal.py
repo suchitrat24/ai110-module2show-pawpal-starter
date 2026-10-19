@@ -134,3 +134,69 @@ def test_three_way_conflict_gives_one_warning():
     warnings = scheduler.detect_conflicts()
     assert len(warnings) == 1
     assert all(name in warnings[0] for name in ["Feeding", "Pill", "Litter box"])
+
+
+# --- Next available slot ---
+
+
+def test_next_slot_on_empty_day_is_start_of_day():
+    scheduler = Scheduler(Owner("Jordan"))
+    assert scheduler.find_next_available_slot(30) == "07:00"
+
+
+def test_next_slot_skips_busy_blocks_using_durations():
+    owner = Owner("Jordan")
+    mochi = Pet("Mochi", "dog")
+    owner.add_pet(mochi)
+    mochi.add_task(Task("Walk", "07:00", duration_minutes=30))     # busy 07:00-07:30
+    mochi.add_task(Task("Feeding", "07:40", duration_minutes=10))  # busy 07:40-07:50
+    scheduler = Scheduler(owner)
+    assert scheduler.find_next_available_slot(10) == "07:30"   # fits in the 10-min gap
+    assert scheduler.find_next_available_slot(15) == "07:50"   # gap too small, go after feeding
+
+
+def test_next_slot_ignores_completed_and_other_days():
+    owner = Owner("Jordan")
+    mochi = Pet("Mochi", "dog")
+    owner.add_pet(mochi)
+    done = Task("Walk", "07:00", duration_minutes=60)
+    done.mark_complete()
+    mochi.add_task(done)
+    mochi.add_task(Task("Vet", "07:00", duration_minutes=60, due_date=date.today() + timedelta(days=1)))
+    assert Scheduler(owner).find_next_available_slot(30) == "07:00"
+
+
+def test_next_slot_returns_none_when_day_is_full():
+    owner = Owner("Jordan")
+    mochi = Pet("Mochi", "dog")
+    owner.add_pet(mochi)
+    mochi.add_task(Task("Long day", "07:00", duration_minutes=13 * 60 + 45))  # until 20:45
+    scheduler = Scheduler(owner)
+    assert scheduler.find_next_available_slot(15) == "20:45"
+    assert scheduler.find_next_available_slot(30) is None
+
+
+# --- Persistence ---
+
+
+def test_save_and_load_round_trip(tmp_path):
+    scheduler, mochi, _ = make_scheduler()
+    owner = scheduler.owner
+    owner.available_minutes = 90
+    mochi.tasks[0].mark_complete()
+    weekly = Task("Brushing", "12:00", frequency="weekly", due_date=date(2026, 10, 26))
+    mochi.add_task(weekly)
+
+    path = tmp_path / "data.json"
+    owner.save_to_json(path)
+    loaded = Owner.load_from_json(path)
+
+    assert loaded.name == "Jordan" and loaded.available_minutes == 90
+    assert [p.name for p in loaded.pets] == ["Mochi", "Luna"]
+    assert loaded.get_all_tasks() == owner.get_all_tasks()
+    assert loaded.get_pet("Mochi").tasks[-1].due_date == date(2026, 10, 26)
+    assert all(t.pet_name == "Mochi" for t in loaded.get_pet("Mochi").tasks)
+
+
+def test_load_missing_file_returns_none(tmp_path):
+    assert Owner.load_from_json(tmp_path / "nope.json") is None

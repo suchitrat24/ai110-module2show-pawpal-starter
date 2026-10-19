@@ -47,3 +47,16 @@ show("Pending tasks (note tomorrow's Morning walk):", scheduler.sort_by_time(sch
 
 print()
 print(scheduler.format_schedule())
+
+# Next available slot: uses each task's duration, not just its start time.
+# Searching from 08:00: Feeding blocks 08:00-08:10 and Brushing blocks 12:00-12:15.
+print("\nNext available slot (searching from 08:00):")
+for minutes in (15, 240):
+    slot = scheduler.find_next_available_slot(minutes, earliest="08:00")
+    print(f"  {minutes}-min task: {slot or 'no room today'}")
+
+# Persistence: save to JSON, load it back, and check nothing was lost.
+owner.save_to_json("demo_data.json")
+reloaded = Owner.load_from_json("demo_data.json")
+print(f"\nSaved and reloaded demo_data.json: {len(reloaded.pets)} pets, "
+      f"{len(reloaded.get_all_tasks())} tasks, match = {reloaded.get_all_tasks() == owner.get_all_tasks()}")

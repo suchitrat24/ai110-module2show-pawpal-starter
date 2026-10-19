@@ -14,6 +14,8 @@ classDiagram
         +mark_incomplete() None
         +priority_value() int
         +next_occurrence() Optional~Task~
+        +to_dict() dict
+        +from_dict(data: dict)$ Task
     }
 
     class Pet {
@@ -24,6 +26,8 @@ classDiagram
         +add_task(task: Task) None
         +remove_task(description: str) bool
         +get_tasks() list~Task~
+        +to_dict() dict
+        +from_dict(data: dict)$ Pet
     }
 
     class Owner {
@@ -33,6 +37,10 @@ classDiagram
         +add_pet(pet: Pet) None
         +get_pet(name: str) Optional~Pet~
         +get_all_tasks() list~Task~
+        +to_dict() dict
+        +from_dict(data: dict)$ Owner
+        +save_to_json(path) None
+        +load_from_json(path)$ Optional~Owner~
     }
 
     class Scheduler {
@@ -44,6 +52,7 @@ classDiagram
         +filter_by_pet(pet_name: str) list~Task~
         +mark_task_complete(task: Task) Optional~Task~
         +detect_conflicts(tasks) list~str~
+        +find_next_available_slot(duration_minutes, on, earliest, latest) Optional~str~
         +todays_schedule(today) list~Task~
         +format_schedule() str
     }
@@ -53,6 +62,7 @@ classDiagram
         +PRIORITY_RANK dict
         +RECURRENCE_STEP dict
         +time_to_minutes(time_str: str) int
+        +minutes_to_time(minutes: int) str
     }
 
     Owner "1" o-- "0..*" Pet : owns
@@ -62,4 +72,10 @@ classDiagram
     Scheduler ..> Task : sorts, filters, completes, checks conflicts
     Task ..> Task : next_occurrence() creates copy
     Task ..> pawpal_system : PRIORITY_RANK, RECURRENCE_STEP
-    Scheduler ..> pawpal_system : time_to_minutes()
+    Scheduler ..> pawpal_system : time_to_minutes(), minutes_to_time()
+    Owner ..> DataFile : save_to_json() / load_from_json()
+
+    class DataFile {
+        <<data.json>>
+        owner, pets, tasks as JSON
+    }
