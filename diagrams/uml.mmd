@@ -9,9 +9,11 @@ classDiagram
         +str frequency
         +bool completed
         +str pet_name
+        +date due_date
         +mark_complete() None
         +mark_incomplete() None
         +priority_value() int
+        +next_occurrence() Task
     }
 
     class Pet {
@@ -38,12 +40,16 @@ classDiagram
         +get_tasks() list~Task~
         +get_pending_tasks() list~Task~
         +sort_by_time(tasks) list~Task~
+        +filter_tasks(pet_name, completed, tasks) list~Task~
         +filter_by_pet(pet_name: str) list~Task~
-        +todays_schedule() list~Task~
+        +mark_task_complete(task: Task) Task
+        +detect_conflicts(tasks) list~str~
+        +todays_schedule(today) list~Task~
         +format_schedule() str
     }
 
     Owner "1" o-- "*" Pet : owns
     Pet "1" *-- "*" Task : needs
     Scheduler "1" --> "1" Owner : reads via get_all_tasks()
-    Scheduler ..> Task : organizes
+    Scheduler ..> Task : sorts, filters, completes
+    Task ..> Task : next_occurrence()

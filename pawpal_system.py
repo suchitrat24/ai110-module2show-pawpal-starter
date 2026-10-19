@@ -1,8 +1,16 @@
 """PawPal+ core logic: Task, Pet, Owner, and Scheduler."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import date, timedelta
 
 PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+RECURRENCE_STEP = {"daily": timedelta(days=1), "weekly": timedelta(weeks=1)}
+
+
+def time_to_minutes(time_str: str) -> int:
+    """Convert an "HH:MM" string to minutes after midnight (so "7:30" and "07:30" sort the same)."""
+    hours, minutes = time_str.split(":")
+    return int(hours) * 60 + int(minutes)
 
 
 @dataclass
@@ -16,6 +24,7 @@ class Task:
     frequency: str = "daily"  # "once", "daily", or "weekly"
     completed: bool = False
     pet_name: str = ""
+    due_date: date = field(default_factory=date.today)
 
     def mark_complete(self) -> None:
         """Mark this task as done."""
@@ -28,6 +37,13 @@ class Task:
     def priority_value(self) -> int:
         """Return a sortable number for priority (lower means more urgent)."""
         return PRIORITY_RANK.get(self.priority, len(PRIORITY_RANK))
+
+    def next_occurrence(self) -> "Task | None":
+        """Return a fresh copy due on the next date for daily/weekly tasks, or None for one-time tasks."""
+        step = RECURRENCE_STEP.get(self.frequency)
+        if step is None:
+            return None
+        return replace(self, completed=False, due_date=self.due_date + step)
 
 
 @dataclass
@@ -94,23 +110,66 @@ class Scheduler:
 
     def get_pending_tasks(self) -> list[Task]:
         """Return tasks that are not completed yet."""
-        return [t for t in self.get_tasks() if not t.completed]
+        return self.filter_tasks(completed=False)
 
     def sort_by_time(self, tasks: list[Task] | None = None) -> list[Task]:
-        """Return tasks ordered by time of day, then by priority."""
+        """Return tasks ordered by date and time of day, with priority breaking ties."""
         tasks = self.get_tasks() if tasks is None else tasks
-        return sorted(tasks, key=lambda t: (t.time, t.priority_value()))
+        return sorted(tasks, key=lambda t: (t.due_date, time_to_minutes(t.time), t.priority_value()))
+
+    def filter_tasks(
+        self,
+        pet_name: str | None = None,
+        completed: bool | None = None,
+        tasks: list[Task] | None = None,
+    ) -> list[Task]:
+        """Return tasks matching a pet name and/or completion status; a None filter is skipped."""
+        tasks = self.get_tasks() if tasks is None else tasks
+        result = []
+        for task in tasks:
+            if pet_name is not None and task.pet_name != pet_name:
+                continue
+            if completed is not None and task.completed != completed:
+                continue
+            result.append(task)
+        return result
 
     def filter_by_pet(self, pet_name: str) -> list[Task]:
         """Return only the tasks for one pet."""
-        return [t for t in self.get_tasks() if t.pet_name == pet_name]
+        return self.filter_tasks(pet_name=pet_name)
 
-    def todays_schedule(self) -> list[Task]:
-        """Return today's pending tasks in time order."""
-        return self.sort_by_time(self.get_pending_tasks())
+    def mark_task_complete(self, task: Task) -> Task | None:
+        """Complete a task and, if it repeats, add its next occurrence to the same pet; return the new task."""
+        task.mark_complete()
+        next_task = task.next_occurrence()
+        if next_task is not None:
+            pet = self.owner.get_pet(task.pet_name)
+            if pet is not None:
+                pet.add_task(next_task)
+        return next_task
+
+    def detect_conflicts(self, tasks: list[Task] | None = None) -> list[str]:
+        """Return a warning for each group of pending tasks booked at the same date and time."""
+        tasks = self.get_pending_tasks() if tasks is None else tasks
+        slots: dict[tuple[date, int], list[Task]] = {}
+        for task in tasks:
+            slots.setdefault((task.due_date, time_to_minutes(task.time)), []).append(task)
+
+        warnings = []
+        for clashing in slots.values():
+            if len(clashing) > 1:
+                names = ", ".join(f"{t.pet_name}: {t.description}" for t in clashing)
+                warnings.append(f"Conflict at {clashing[0].time} on {clashing[0].due_date}: {names}")
+        return warnings
+
+    def todays_schedule(self, today: date | None = None) -> list[Task]:
+        """Return pending tasks due today, in time order."""
+        today = date.today() if today is None else today
+        due_today = [t for t in self.get_pending_tasks() if t.due_date == today]
+        return self.sort_by_time(due_today)
 
     def format_schedule(self) -> str:
-        """Return today's schedule as readable text for the terminal."""
+        """Return today's schedule, plus any conflict warnings, as readable text for the terminal."""
         tasks = self.todays_schedule()
         lines = [f"Today's Schedule for {self.owner.name}", "=" * 40]
         if not tasks:
@@ -123,4 +182,6 @@ class Scheduler:
         total = sum(t.duration_minutes for t in tasks)
         lines.append("-" * 40)
         lines.append(f"Total: {total} min of {self.owner.available_minutes} min available")
+        for warning in self.detect_conflicts(tasks):
+            lines.append(f"WARNING: {warning}")
         return "\n".join(lines)

@@ -18,13 +18,13 @@
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+My scheduler looks at a task's time of day, its due date, its priority, whether it's already done, and how many minutes I have available. Time matters most, because pet care really happens on a clock: a dog needs to go out in the morning no matter what. So I sort by date and time first, and I only use priority to break ties when two tasks are at the same time. Completed tasks and tasks due on a later day are left out of today's plan. The available minutes are only used to warn me if the day is overbooked. They don't drop any tasks automatically, because I'd rather decide myself what to skip.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+My conflict detection only checks for tasks that start at the exact same date and time. It doesn't check whether durations overlap. For example, a 30-minute walk at 07:30 and a feeding at 07:45 really do overlap, but my scheduler won't flag them. I think that's reasonable for now. Most pet care tasks are short and booked at round times, and the exact-match check is simple and easy to read. It also just returns a warning message instead of crashing, so the owner can decide what to do. Checking real overlaps would mean comparing each task's start + duration against the others, which I'd add next if I had more time.
+
+I made a similar call on readability. When I asked the AI how `filter_tasks()` could be simplified, it suggested a single list comprehension with both conditions packed into one line. That's more "Pythonic," but I found it harder to read with two optional filters. I kept my version with a plain `for` loop and two `continue` checks, because each filter is easy to see. Both run in the same O(n) time, so I didn't lose any performance.
 
 ---
 

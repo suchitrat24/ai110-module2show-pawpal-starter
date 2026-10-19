@@ -58,15 +58,45 @@ How they connect: Owner → many Pets → many Tasks, and the Scheduler talks on
 Output of `python main.py`:
 
 ```
+Tasks as added (unsorted):
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+  2026-10-19 07:30  Mochi  Morning walk    (daily, todo)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, todo)
+  2026-10-19 12:00  Luna   Brushing        (weekly, todo)
+  2026-10-19 08:00  Luna   Feeding         (daily, todo)
+
+Sorted by time:
+  2026-10-19 07:30  Mochi  Morning walk    (daily, todo)
+  2026-10-19 08:00  Luna   Feeding         (daily, todo)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, todo)
+  2026-10-19 12:00  Luna   Brushing        (weekly, todo)
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+
+Only Mochi's tasks:
+  2026-10-19 07:30  Mochi  Morning walk    (daily, todo)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, todo)
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+
+Conflict check:
+  WARNING: Conflict at 08:00 on 2026-10-19: Mochi: Heartworm pill, Luna: Feeding
+
+Completed tasks:
+  2026-10-19 07:30  Mochi  Morning walk    (daily, done)
+  2026-10-19 08:00  Mochi  Heartworm pill  (once, done)
+
+Pending tasks (note tomorrow's Morning walk):
+  2026-10-19 08:00  Luna   Feeding         (daily, todo)
+  2026-10-19 12:00  Luna   Brushing        (weekly, todo)
+  2026-10-19 18:00  Mochi  Evening walk    (daily, todo)
+  2026-10-20 07:30  Mochi  Morning walk    (daily, todo)
+
 Today's Schedule for Jordan
 ========================================
-07:30  Mochi    Morning walk        30 min  [high, daily]
 08:00  Luna     Feeding             10 min  [high, daily]
-08:00  Mochi    Heartworm pill       5 min  [medium, once]
 12:00  Luna     Brushing            15 min  [low, weekly]
 18:00  Mochi    Evening walk        30 min  [high, daily]
 ----------------------------------------
-Total: 90 min of 120 min available
+Total: 55 min of 120 min available
 ```
 
 ## 🧪 Testing PawPal+
@@ -82,21 +112,20 @@ pytest --cov
 Sample test output:
 
 ```
-tests\test_pawpal.py ..                                                  [100%]
+tests\test_pawpal.py ........                                            [100%]
 
-============================== 2 passed in 0.06s ==============================
+============================== 8 passed in 0.04s ==============================
 ```
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
-
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | `Scheduler.sort_by_time()` | Sorts with `sorted()` and a lambda key of `(due_date, minutes after midnight, priority)`. Times are converted with `time_to_minutes()`, so `"7:30"` and `"07:30"` sort the same. Priority breaks ties at the same time. |
+| Filtering | `Scheduler.filter_tasks(pet_name=..., completed=...)` | Filters by pet, by completion status, or both. Leaving a filter as `None` skips it. `filter_by_pet()` and `get_pending_tasks()` are shortcuts built on it. |
+| Conflict handling | `Scheduler.detect_conflicts()` | Groups pending tasks by exact date + start time and returns a warning string for each slot with 2+ tasks (same pet or different pets). It never raises an error. The warnings show in `format_schedule()` and in the Streamlit app. |
+| Recurring tasks | `Task.next_occurrence()`, `Scheduler.mark_task_complete()` | Completing a `daily` or `weekly` task adds a fresh copy to the same pet, due `today + timedelta(days=1)` or `+ timedelta(weeks=1)`. `once` tasks don't repeat. |
+| Today's plan | `Scheduler.todays_schedule()` | Shows only pending tasks due today, in time order, so tomorrow's copies stay hidden until their day. |
 
 ## 📸 Demo Walkthrough
 

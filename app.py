@@ -111,10 +111,43 @@ else:
         st.warning(f"Total: {total} min, which is more than the {owner.available_minutes} min you have.")
     else:
         st.success(f"Total: {total} min of {owner.available_minutes} min available.")
+    for warning in scheduler.detect_conflicts(schedule):
+        st.warning(f"⚠️ {warning}")
 
     st.markdown("**Mark a task done**")
     labels = [f"{t.time} · {t.pet_name} · {t.description}" for t in schedule]
     choice = st.selectbox("Task", labels, label_visibility="collapsed")
     if st.button("Mark complete"):
-        schedule[labels.index(choice)].mark_complete()
+        next_task = scheduler.mark_task_complete(schedule[labels.index(choice)])
+        if next_task:
+            st.toast(f"Next '{next_task.description}' scheduled for {next_task.due_date}.")
         st.rerun()
+
+st.divider()
+
+st.subheader("Browse Tasks")
+col1, col2 = st.columns(2)
+with col1:
+    pet_filter = st.selectbox("Pet", ["All"] + [p.name for p in owner.pets])
+with col2:
+    status_filter = st.selectbox("Status", ["All", "Pending", "Completed"])
+filtered = scheduler.filter_tasks(
+    pet_name=None if pet_filter == "All" else pet_filter,
+    completed={"All": None, "Pending": False, "Completed": True}[status_filter],
+)
+if filtered:
+    st.table(
+        [
+            {
+                "date": str(t.due_date),
+                "time": t.time,
+                "pet": t.pet_name,
+                "task": t.description,
+                "frequency": t.frequency,
+                "done": "✅" if t.completed else "",
+            }
+            for t in scheduler.sort_by_time(filtered)
+        ]
+    )
+else:
+    st.caption("No tasks match these filters.")
